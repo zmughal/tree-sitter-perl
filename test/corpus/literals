@@ -30,4 +30,15 @@ floats
     (number))
   (expression_statement
     (number)))
+================================================================================
+'' strings
+================================================================================
+'hello';
+'a\'string';
+'a\\string';
+--------------------------------------------------------------------------------
 
+(source_file
+  (expression_statement (string_literal))
+  (expression_statement (string_literal (escape_sequence)))
+  (expression_statement (string_literal (escape_sequence))))
