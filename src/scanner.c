@@ -49,6 +49,35 @@ static void skip_whitespace(TSLexer *lexer)
   }
 }
 
+static void _skip_chars(TSLexer *lexer, int maxlen, const char *allow)
+{
+  while(maxlen)
+    if(!lexer->lookahead)
+      return;
+    else if(strchr(allow, lexer->lookahead)) {
+      lexer->advance(lexer, false);
+      if(maxlen > 0)
+        maxlen--;
+    }
+    else
+      break;
+}
+#define skip_hexdigits(lexer, maxlen)  _skip_chars(lexer, maxlen, "0123456789ABCDEFabcdef")
+#define skip_digits(lexer, maxlen)     _skip_chars(lexer, maxlen, "0123456789")
+#define skip_octdigits(lexer, maxlen)  _skip_chars(lexer, maxlen, "01234567")
+
+static void skip_braced(TSLexer *lexer)
+{
+  if(lexer->lookahead != '{')
+    return;
+
+  lexer->advance(lexer, false);
+  while(lexer->lookahead && lexer->lookahead != '}')
+    lexer->advance(lexer, false);
+
+  lexer->advance(lexer, false);
+}
+
 static int close_for_open(int c)
 {
   switch(c) {
@@ -189,8 +218,34 @@ bool tree_sitter_perl_external_scanner_scan(
   if(valid_symbols[TOKEN_ESCAPE_SEQUENCE]) {
     if(lexer->lookahead == '\\') {
       lexer->advance(lexer, false);
-      // TODO: \xDD, \uXXXX, etc...
+
+      int escape = lexer->lookahead;
       lexer->advance(lexer, false);
+
+      switch(escape) {
+        case 'x':
+          if(lexer->lookahead == '{')
+            skip_braced(lexer);
+          else
+            skip_hexdigits(lexer, 2);
+          break;
+
+        case 'N':
+          skip_braced(lexer);
+          break;
+
+        case 'o':
+          /* TODO: contents should just be octal */
+          skip_braced(lexer);
+          break;
+
+        case '0':
+          skip_octdigits(lexer, 3);
+          break;
+
+        default:
+          break;
+      }
 
       TOKEN(TOKEN_ESCAPE_SEQUENCE);
     }
