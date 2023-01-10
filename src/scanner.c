@@ -21,6 +21,7 @@ enum TokenType {
   /* immediates */
   TOKEN_QUOTELIKE_END,
   TOKEN_Q_STRING_CONTENT,
+  TOKEN_QQ_STRING_CONTENT,
   TOKEN_ESCAPE_SEQUENCE,
 };
 
@@ -266,7 +267,8 @@ bool tree_sitter_perl_external_scanner_scan(
     }
   }
 
-  if(valid_symbols[TOKEN_Q_STRING_CONTENT]) {
+  if(valid_symbols[TOKEN_Q_STRING_CONTENT] || valid_symbols[TOKEN_QQ_STRING_CONTENT]) {
+    bool is_qq = valid_symbols[TOKEN_QQ_STRING_CONTENT];
     bool valid = false;
 
     int c;
@@ -281,13 +283,19 @@ bool tree_sitter_perl_external_scanner_scan(
         else
           break;
       }
+      else if(is_qq && (c == '$' || c == '@'))
+        break;
 
       valid = true;
       lexer->advance(lexer, false);
     }
 
-    if(valid)
-      TOKEN(TOKEN_Q_STRING_CONTENT);
+    if(valid) {
+      if(is_qq)
+        TOKEN(TOKEN_QQ_STRING_CONTENT);
+      else
+        TOKEN(TOKEN_Q_STRING_CONTENT);
+    }
   }
 
   if(valid_symbols[TOKEN_QUOTELIKE_END]) {

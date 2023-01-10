@@ -55,6 +55,7 @@ module.exports = grammar({
     /* immediates */
     $._quotelike_end,
     $._q_string_content,
+    $._qq_string_content,
     $.escape_sequence,
   ],
   extras: $ => [
@@ -446,9 +447,13 @@ module.exports = grammar({
     interpolated_string_literal: $ => seq(
       $._qq_string_begin,
       repeat(choice(
-        $._q_string_content,
+        $._qq_string_content,
         $.escape_sequence,
-        /* TODO: interpolations */
+
+        /* interpolations */
+        $.scalar,
+        $.array,
+        // TODO: $arr[123], $hash{key}, ${expr}, @{expr}, ...
       )),
       $._quotelike_end
     ),
