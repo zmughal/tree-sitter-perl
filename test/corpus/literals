@@ -54,3 +54,27 @@ q(a (string) here);
   (expression_statement (string_literal))
   (expression_statement (string_literal))
   (expression_statement (string_literal)))
+================================================================================
+"" strings
+================================================================================
+"hello";
+"a\"string";
+"a\\string";
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement (interpolated_string_literal))
+  (expression_statement (interpolated_string_literal (escape_sequence)))
+  (expression_statement (interpolated_string_literal (escape_sequence))))
+================================================================================
+qq() strings
+================================================================================
+qq(hello);
+qq(a 'string');
+qq(a (string) here);
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement (interpolated_string_literal))
+  (expression_statement (interpolated_string_literal))
+  (expression_statement (interpolated_string_literal)))

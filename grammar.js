@@ -51,6 +51,7 @@ module.exports = grammar({
   externals: $ => [
     /* ident-alikes */
     $._q_string_begin,
+    $._qq_string_begin,
     /* immediates */
     $._quotelike_end,
     $._q_string_content,
@@ -279,6 +280,7 @@ module.exports = grammar({
 
       // new scanner temporary testing
       $.string_literal,
+      $.interpolated_string_literal,
     ),
 
     assignment_expression: $ =>
@@ -438,6 +440,15 @@ module.exports = grammar({
       repeat(choice(
         $._q_string_content,
         $.escape_sequence,
+      )),
+      $._quotelike_end
+    ),
+    interpolated_string_literal: $ => seq(
+      $._qq_string_begin,
+      repeat(choice(
+        $._q_string_content,
+        $.escape_sequence,
+        /* TODO: interpolations */
       )),
       $._quotelike_end
     ),
