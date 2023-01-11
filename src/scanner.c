@@ -14,14 +14,18 @@
 #include <string.h>
 #define streq(a,b)  (strcmp(a,b)==0)
 
+#include <wctype.h>
+
 enum TokenType {
   /* ident-alikes */
   TOKEN_Q_STRING_BEGIN,
   TOKEN_QQ_STRING_BEGIN,
+  TOKEN_QW_LIST_BEGIN,
   /* immediates */
   TOKEN_QUOTELIKE_END,
   TOKEN_Q_STRING_CONTENT,
   TOKEN_QQ_STRING_CONTENT,
+  TOKEN_QW_LIST_CONTENT,
   TOKEN_ESCAPE_SEQUENCE,
 };
 
@@ -230,6 +234,28 @@ bool tree_sitter_perl_external_scanner_scan(
       TOKEN(TOKEN_QQ_STRING_BEGIN);
     }
   }
+  if(valid_symbols[TOKEN_QW_LIST_BEGIN]) {
+    if(ident_len == 2 && streq(ident, "qw")) {
+      skip_whitespace(lexer);
+
+      int delim_close = close_for_open(lexer->lookahead);
+      if(delim_close) {
+        state->delim_open  = lexer->lookahead;
+        state->delim_close = delim_close;
+      }
+      else {
+        state->delim_open  = 0;
+        state->delim_close = lexer->lookahead;
+      }
+      state->delim_count = 0;
+
+      lexer->advance(lexer, false);
+
+      DEBUG("QW LIST open='%c' close='%c'\n", state->delim_open, state->delim_close);
+
+      TOKEN(TOKEN_QW_LIST_BEGIN);
+    }
+  }
 
   if(valid_symbols[TOKEN_ESCAPE_SEQUENCE]) {
     if(lexer->lookahead == '\\') {
@@ -296,6 +322,30 @@ bool tree_sitter_perl_external_scanner_scan(
       else
         TOKEN(TOKEN_Q_STRING_CONTENT);
     }
+  }
+
+  if(valid_symbols[TOKEN_QW_LIST_CONTENT]) {
+    bool valid = false;
+
+    int c;
+    while((c = lexer->lookahead)) {
+      if(iswspace(c))
+        break;
+      if(state->delim_open && c == state->delim_open)
+        state->delim_count++;
+      else if(c == state->delim_close) {
+        if(state->delim_count)
+          state->delim_count--;
+        else
+          break;
+      }
+
+      lexer->advance(lexer, false);
+      valid = true;
+    }
+
+    if(valid)
+      TOKEN(TOKEN_QW_LIST_CONTENT);
   }
 
   if(valid_symbols[TOKEN_QUOTELIKE_END]) {

@@ -88,3 +88,15 @@ Interpolation in "" strings
 (source_file
   (expression_statement (interpolated_string_literal (scalar)))
   (expression_statement (interpolated_string_literal (array))))
+================================================================================
+qw() lists
+================================================================================
+qw( a b c );
+qw();
+qw/ 1 2 /;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement (quoted_word_list))
+  (expression_statement (quoted_word_list))
+  (expression_statement (quoted_word_list)))

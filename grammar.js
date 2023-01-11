@@ -52,10 +52,12 @@ module.exports = grammar({
     /* ident-alikes */
     $._q_string_begin,
     $._qq_string_begin,
+    $._qw_list_begin,
     /* immediates */
     $._quotelike_end,
     $._q_string_content,
     $._qq_string_content,
+    $._qw_list_content,
     $.escape_sequence,
   ],
   extras: $ => [
@@ -204,7 +206,7 @@ module.exports = grammar({
     ),
     slice_expression: $ => choice(
       seq('(', optional(field('list', $._expr)), ')', '[', $._expr, ']'),
-      // TODO: QWLIST
+      seq(field('list', $.quoted_word_list), '[', $._expr, ']'),
     ),
 
     _term: $ => choice(
@@ -226,7 +228,7 @@ module.exports = grammar({
       /* KW_LOCAL
        */
       seq('(', $._expr, ')'),
-      /* QWLIST */
+      $.quoted_word_list,
       $.stub_expression,
       $.scalar,
       $.glob,
@@ -455,6 +457,12 @@ module.exports = grammar({
         $.array,
         // TODO: $arr[123], $hash{key}, ${expr}, @{expr}, ...
       )),
+      $._quotelike_end
+    ),
+
+    quoted_word_list: $ => seq(
+      $._qw_list_begin,
+      repeat($._qw_list_content),
       $._quotelike_end
     ),
 
