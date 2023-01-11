@@ -49,7 +49,9 @@ module.exports = grammar({
     $.primitive
   ],
   externals: $ => [
+    /* ident-alikes */
     $._q_string_begin,
+    /* immediates */
     $._quotelike_end,
     $._q_string_content,
     $.escape_sequence,

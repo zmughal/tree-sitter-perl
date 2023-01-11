@@ -1,5 +1,6 @@
 #include <tree_sitter/parser.h>
 
+/* Set this to #define instead to enable debug printing */
 #undef DEBUGGING
 
 /* for debug */
@@ -10,11 +11,21 @@
 #  define DEBUG(fmt,...)
 #endif
 
+#include <string.h>
+#define streq(a,b)  (strcmp(a,b)==0)
+
 enum TokenType {
+  /* ident-alikes */
   TOKEN_Q_STRING_BEGIN,
+  /* immediates */
   TOKEN_QUOTELIKE_END,
   TOKEN_Q_STRING_CONTENT,
   TOKEN_ESCAPE_SEQUENCE,
+};
+
+struct LexerState {
+  int delim_open, delim_close;  /* codepoints */
+  int delim_count;
 };
 
 #define TOKEN(type) \
@@ -38,38 +49,141 @@ static void skip_whitespace(TSLexer *lexer)
   }
 }
 
-void *tree_sitter_perl_external_scanner_create() { return NULL; }
-void tree_sitter_perl_external_scanner_destroy(void *p) {}
-void tree_sitter_perl_external_scanner_reset(void *p) {}
-unsigned tree_sitter_perl_external_scanner_serialize(void *p, char *buffer) { return 0; }
-void tree_sitter_perl_external_scanner_deserialize(void *p, const char *b, unsigned n) {}
+static int close_for_open(int c)
+{
+  switch(c) {
+    case '(': return ')';
+    case '[': return ']';
+    case '{': return '}';
+    case '<': return '>';
+    /* TODO: Add aaaaalll the Unicode ones */
+    default:
+      return 0;
+  }
+}
+
+static bool isidfirst(int c)
+{
+  // TODO: More Unicode in here
+  return c == '_' || iswalpha(c);
+}
+
+static bool isidcont(int c)
+{
+  // TODO: More Unicode in here
+  return isidfirst(c) || iswdigit(c);
+}
+
+void *tree_sitter_perl_external_scanner_create()
+{
+  return malloc(sizeof(struct LexerState));
+}
+
+void tree_sitter_perl_external_scanner_destroy(void *payload)
+{
+  free(payload);
+}
+
+void tree_sitter_perl_external_scanner_reset(void *payload) {}
+
+unsigned int tree_sitter_perl_external_scanner_serialize(void *payload, char *buffer)
+{
+  struct LexerState *state = payload;
+
+  unsigned int n = sizeof(struct LexerState);
+  memcpy(buffer, state, n);
+  return n;
+}
+
+void tree_sitter_perl_external_scanner_deserialize(void *payload, const char *buffer, unsigned int n)
+{
+  struct LexerState *state = payload;
+
+  memcpy(state, buffer, n);
+}
+
+/* Longest identifier name we ever care to look specifically for (excluding
+ * terminating NUL)
+ */
+#define MAX_IDENT_LEN 2
+
 bool tree_sitter_perl_external_scanner_scan(
   void *payload,
   TSLexer *lexer,
   const bool *valid_symbols
 ) {
-  /* TODO: If any of the symbols could match a wordlike, scan for a wordlike
-   * and capture it here
-   */
-  DEBUG("Scanning [%d,%d,%d,%d] at > '%c' (U+%04X)\n",
-      valid_symbols[0], valid_symbols[1], valid_symbols[2], valid_symbols[3],
-      lexer->lookahead, lexer->lookahead);
+  struct LexerState *state = payload;
 
   // The only time we'd ever be looking for both BEGIN and END is during an error
   // condition. Abort in that case
   if(valid_symbols[TOKEN_Q_STRING_BEGIN] && valid_symbols[TOKEN_QUOTELIKE_END])
     return false;
 
-  if(valid_symbols[TOKEN_Q_STRING_BEGIN]) {
+  bool allow_identalike = false;
+  for(int sym = 0; sym <= TOKEN_Q_STRING_BEGIN; sym++)
+    if(valid_symbols[sym]) {
+      allow_identalike = true;
+      break;
+    }
+
+  if(allow_identalike);
     skip_whitespace(lexer);
 
-    if(lexer->lookahead == '\'') {
+  int c = lexer->lookahead;
+
+  int ident_len = 0;
+  char ident[MAX_IDENT_LEN+1];
+  if(allow_identalike && isidfirst(c)) {
+    /* All the identifiers we care about are US-ASCII */
+    ident[0] = c;
+    ident[1] = 0;
+    ident_len++;
+    lexer->advance(lexer, false);
+
+    while((c = lexer->lookahead) && isidcont(c)) {
+      if(ident_len < MAX_IDENT_LEN) {
+        ident[ident_len] = c;
+        ident[ident_len+1] = 0;
+      }
+
       lexer->advance(lexer, false);
+      ident_len++;
+    }
+    if(ident_len) {
+      DEBUG("IDENT \"%.*s\"\n", ident_len, ident);
+    }
+  }
+
+  if(valid_symbols[TOKEN_Q_STRING_BEGIN]) {
+    if(ident_len == 1 && streq(ident, "q")) {
+      skip_whitespace(lexer);
+
+      int delim_close = close_for_open(lexer->lookahead);
+      if(delim_close) {
+        state->delim_open  = lexer->lookahead;
+        state->delim_close = delim_close;
+      }
+      else {
+        state->delim_open  = 0;
+        state->delim_close = lexer->lookahead;
+      }
+      state->delim_count = 0;
+
+      lexer->advance(lexer, false);
+
+      DEBUG("Generic QSTRING open='%c' close='%c'\n", state->delim_open, state->delim_close);
 
       TOKEN(TOKEN_Q_STRING_BEGIN);
     }
+    if(lexer->lookahead == '\'') {
+      lexer->advance(lexer, false);
 
-    /* TODO: capture q SYMBOL */
+      state->delim_open = 0;
+      state->delim_close = '\'';
+      state->delim_count = 0;
+
+      TOKEN(TOKEN_Q_STRING_BEGIN);
+    }
   }
 
   if(valid_symbols[TOKEN_ESCAPE_SEQUENCE]) {
@@ -84,8 +198,20 @@ bool tree_sitter_perl_external_scanner_scan(
 
   if(valid_symbols[TOKEN_Q_STRING_CONTENT]) {
     bool valid = false;
-    // TODO: custom ending token
-    while(lexer->lookahead && lexer->lookahead != '\\' && lexer->lookahead != '\'') {
+
+    int c;
+    while((c = lexer->lookahead)) {
+      if(c == '\\')
+        break;
+      if(state->delim_open && c == state->delim_open)
+        state->delim_count++;
+      else if(c == state->delim_close) {
+        if(state->delim_count)
+          state->delim_count--;
+        else
+          break;
+      }
+
       valid = true;
       lexer->advance(lexer, false);
     }
@@ -95,7 +221,7 @@ bool tree_sitter_perl_external_scanner_scan(
   }
 
   if(valid_symbols[TOKEN_QUOTELIKE_END]) {
-    if(lexer->lookahead == '\'') {
+    if(lexer->lookahead == state->delim_close && !state->delim_count) {
       lexer->advance(lexer, false);
 
       TOKEN(TOKEN_QUOTELIKE_END);
