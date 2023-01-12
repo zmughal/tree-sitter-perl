@@ -94,9 +94,12 @@ qw() lists
 qw( a b c );
 qw();
 qw/ 1 2 /;
+qw/ hello \/ goodbye/;
 --------------------------------------------------------------------------------
 
 (source_file
   (expression_statement (quoted_word_list))
   (expression_statement (quoted_word_list))
-  (expression_statement (quoted_word_list)))
+  (expression_statement (quoted_word_list))
+  (expression_statement (quoted_word_list (escape_sequence)))
+  )

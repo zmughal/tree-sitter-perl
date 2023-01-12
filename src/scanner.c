@@ -347,6 +347,8 @@ bool tree_sitter_perl_external_scanner_scan(
     while((c = lexer->lookahead)) {
       if(iswspace(c))
         break;
+      if(c == '\\')
+        break;
       if(state->delim_open && c == state->delim_open)
         state->delim_count++;
       else if(c == state->delim_close) {
