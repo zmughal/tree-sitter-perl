@@ -22,3 +22,6 @@ undef $var;
 local $var;
 # <- keyword
 #     ^ variable.scalar
+return $var;
+# <- keyword
+#      ^ variable.scalar
