@@ -161,3 +161,22 @@ local $var;
 
 (source_file
   (expression_statement (localization_expression (scalar))))
+================================================================================
+return
+================================================================================
+return $var;
+return 1, 2, 3;
+1, 2, return 3, 4;
+return undef if $stop;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (return_expression (scalar)))
+  (expression_statement
+    (return_expression (number) (number) (number)))
+    ; or we could also accept (return_expression (list_expression (number) (number) (number)))
+  (expression_statement
+    (list_expression (number) (number) (return_expression (number) (number))))
+  (expression_statement
+    (postfix_if_expression (return_expression (undef_expression)) (scalar))))

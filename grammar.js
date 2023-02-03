@@ -293,6 +293,7 @@ module.exports = grammar({
       $.glob_deref_expression,
       $.loopex_expression,
       $.goto_expression,
+      $.return_expression,
       $.undef_expression,
       /* NOTOP listexpr
        * UNIOP
@@ -445,6 +446,11 @@ module.exports = grammar({
       prec.left(TERMPREC.LOOPEX, seq(field('loopex', $._LOOPEX), optional($._term))),
     goto_expression: $ =>
       prec.left(TERMPREC.LOOPEX, seq('goto', $._term)),
+
+    /* Perl just considers `undef` like any other LSTOP but it's quite likely
+     * that tree consumers and highlighters would want to handle it specially
+     */
+    return_expression: $ => prec.left(TERMPREC.LSTOP, seq('return', $._term, repeat(seq(',', $._term)))),
 
     /* Perl just considers `undef` like any other UNIOP but it's quite likely
      * that tree consumers and highlighters would want to handle it specially
